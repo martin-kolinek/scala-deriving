@@ -15,8 +15,6 @@ case class CatInABox(cat:Cat) {
 
 class DerivingUtilTest extends FunSuite {
 	test("Deriving util test") {
-		def intToString(i:Int) = "x"*i
-		def stringToInt(s:String) = s.length
 				
 		implicit val catIsCat = new IsCat[Cat] {
 			def meow(cat:Cat) = "meow"
