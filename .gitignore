@@ -1,0 +1,15 @@
+#eclipse stuff
+macro/.classpath
+macro/.project
+macro/.cache
+/.classpath
+/.project
+/.cache
+
+/.settings
+/*.log
+/.worksheet
+
+#sbt stuff
+target/
+
