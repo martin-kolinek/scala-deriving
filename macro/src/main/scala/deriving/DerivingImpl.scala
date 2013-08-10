@@ -16,11 +16,18 @@ object DerivingImpl {
 		val fromVal = ValDef(NoMods, fromName, TypeTree(from.actualType), from.tree)
 		val toVal = ValDef(NoMods, toName, TypeTree(to.actualType), to.tree)
 		
-		val typeClassParam = typeClass.typeParams(0)
+		val basicTypeClassParam = typeClass.typeParams(0).typeSignature 
+		val typeClassParams = (for{
+				bs <- typeClass.baseClasses ++ List(typeClass)
+				if bs.isClass
+				cls = bs.asClass
+				param <- cls.typeParams
+				if(param.typeSignature =:= basicTypeClassParam)
+			} yield param).toSet
 		
 		def processParameters(params:List[Symbol]) = {
 			params.map {
-			    case x if x.typeSignature.typeSymbol == typeClassParam => 
+			    case x if typeClassParams.contains(x.typeSignature.typeSymbol) => 
 			        ValDef(NoMods, x.name.asInstanceOf[TermName], TypeTree(newInstance), EmptyTree) ->
 			        Apply(toTree, List(Ident(x.name)))
 			    case x => 
@@ -30,14 +37,14 @@ object DerivingImpl {
 		}
 		
 		def processReturnValue(t:Tree, retType:Type) = {
-			if(retType.typeSymbol == typeClassParam)
+			if(typeClassParams.contains(retType.typeSymbol))
 				Apply(fromTree, List(t))
 			else
 				t
 		}
 			
 		def replaceType(t:Type) = {
-			if(t.typeSymbol == typeClassParam)
+			if(typeClassParams.contains(t.typeSymbol))
 				newInstance
 			else
 				t
@@ -50,8 +57,8 @@ object DerivingImpl {
 			
 		val toChange = typeClass.typeSignature.members.collect {
 		    case x:MethodSymbol 
-		        if x.paramss.flatten.exists(_.typeSignature.typeSymbol == typeClassParam)
-		            || x.returnType.typeSymbol == typeClassParam
+		        if x.paramss.flatten.exists(param => typeClassParams.contains(param.typeSignature.typeSymbol))
+		            || typeClassParams.contains(x.returnType.typeSymbol)
 		            => x
 		}
 			
