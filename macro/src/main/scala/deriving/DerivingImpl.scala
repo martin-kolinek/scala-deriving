@@ -57,7 +57,7 @@ object DerivingImpl {
 			
 		val changed = toChange.map {
 		    case x => {
-		    	val mods = NoMods
+		    	val mods = Modifiers(Flag.OVERRIDE)
 		    	val name = x.name.asInstanceOf[TermName]
 		    	val tpt = TypeTree(replaceType(x.returnType))
 		    	val base:Tree = Select(ev.tree, name)
