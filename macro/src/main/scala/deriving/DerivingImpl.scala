@@ -65,19 +65,21 @@ object DerivingImpl {
 			} 
 		}
 		
-		def replaceType(t:Type):TypTree = {
+		def replaceType(t:Type, identSymbols:Set[Symbol]):Tree = {
 			if(hasTypeClassParam(t)) {
 				if(t.typeSymbol == basicTypeClassParam)
 					TypeTree(newInstance)
 				else {
 					t match {
 						case ref:TypeRef => {
-							val newArgs = ref.args.map(replaceType(_))
+							val newArgs = ref.args.map(replaceType(_, identSymbols))
 							AppliedTypeTree(Ident(t.typeConstructor.typeSymbol), newArgs)
 						}
 					}
 				}
 			}
+			else if (identSymbols.contains(t.typeSymbol))
+				Ident(newTypeName(t.typeSymbol.name.decoded))
 			else
 				TypeTree(t)
 		}
@@ -137,14 +139,15 @@ object DerivingImpl {
 			tpe.substituteSymbols(baseSymbols._1, baseSymbols._2)
 		}
 		
-		def processReturnValue(t:Tree, retType:Type):Tree = transformTree(t, substituteBaseSymbols(retType), fromTree)
+		def processReturnValue(t:Tree, retType:Type):Tree = 
+			transformTree(t, substituteBaseSymbols(retType), fromTree)
 		
-		def processParameters(params:List[Symbol]) = {
+		def processParameters(params:List[Symbol], identSymbols) = {
 			params
 			    .map(x=>x.name -> substituteBaseSymbols(x.typeSignature))
 			    .map {
 			        case (name, tpe) if hasTypeClassParam(tpe) => 
-			            ValDef(NoMods, name.asInstanceOf[TermName], replaceType(tpe), EmptyTree) ->
+			            ValDef(NoMods, name.asInstanceOf[TermName], replaceType(tpe, identSymbols), EmptyTree) ->
 			            transformTree(Ident(name), tpe, toTree)
 			        case (name, tpe) =>  
 			            ValDef(NoMods, name.asInstanceOf[TermName], TypeTree(tpe), EmptyTree) ->
@@ -165,16 +168,20 @@ object DerivingImpl {
 			
 		val changed = toChange.map {
 		    case x => {
+		    	val tparams = x.typeParams.map { p =>
+		    		TypeDef(Modifiers(Flag.PARAM), newTypeName(p.name.decoded), Nil, TypeBoundsTree(Ident(typeOf[Nothing].typeSymbol), Ident(typeOf[Any].typeSymbol)))
+		    	}
 		    	val mods = Modifiers(Flag.OVERRIDE)
 		    	val name = x.name.asInstanceOf[TermName]
 		    	val tpt = replaceType(substituteBaseSymbols(x.returnType))
 		    	val base:Tree = Select(ev.tree, name)
 		    	val (typeParamLists, paramLists) = x.paramss.map(processParameters(_)).unzip
 		    	val body = processReturnValue((base /: paramLists)(Apply(_, _)), x.returnType)
+		    	
 		    	if(x.isVal) 
 		    		ValDef(mods, name, tpt, body)
 		    	else 
-		    		DefDef(mods, name, Nil, typeParamLists, tpt, body)
+		    		DefDef(mods, name, tparams, typeParamLists, tpt, body)
 		    }
 		}.toList
 			
