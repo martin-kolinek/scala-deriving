@@ -1,10 +1,12 @@
 #eclipse stuff
 macro/.classpath
+macro/.settings
 macro/.project
 macro/.cache
 /.classpath
 /.project
 /.cache
+/.settings
 
 /.settings
 /*.log

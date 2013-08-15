@@ -4,6 +4,7 @@ import scala.reflect.macros.Context
 import scala.language.higherKinds
 import scala.collection.mutable.ListBuffer
 import sun.reflect.generics.tree.ReturnType
+import sun.reflect.generics.tree.TypeSignature
 
 object DerivingImpl {
 	
@@ -65,10 +66,25 @@ object DerivingImpl {
 			} 
 		}
 		
+		def hasIdentType(t:Type, identSymbols:Set[Symbol]):Boolean = {
+		    if(identSymbols.contains(t.typeSymbol))
+		        true
+		    else t match {
+		        case ref:TypeRef => {
+		            ref.args.exists(hasIdentType(_, identSymbols))
+		        }
+		        case _ => false
+		    }
+		}
+		
+		def typeParamNewTypeName(s:Symbol) = newTypeName(s.name.decoded+"Deriv")
+		
 		def replaceType(t:Type, identSymbols:Set[Symbol]):Tree = {
-			if(hasTypeClassParam(t)) {
+			if(hasTypeClassParam(t) || hasIdentType(t, identSymbols)) {
 				if(t.typeSymbol == basicTypeClassParam)
 					TypeTree(newInstance)
+				else if (identSymbols.contains(t.typeSymbol))
+				    Ident(typeParamNewTypeName(t.typeSymbol))
 				else {
 					t match {
 						case ref:TypeRef => {
@@ -78,8 +94,6 @@ object DerivingImpl {
 					}
 				}
 			}
-			else if (identSymbols.contains(t.typeSymbol))
-				Ident(newTypeName(t.typeSymbol.name.decoded))
 			else
 				TypeTree(t)
 		}
@@ -142,17 +156,20 @@ object DerivingImpl {
 		def processReturnValue(t:Tree, retType:Type):Tree = 
 			transformTree(t, substituteBaseSymbols(retType), fromTree)
 		
-		def processParameters(params:List[Symbol], identSymbols) = {
-			params
-			    .map(x=>x.name -> substituteBaseSymbols(x.typeSignature))
-			    .map {
-			        case (name, tpe) if hasTypeClassParam(tpe) => 
-			            ValDef(NoMods, name.asInstanceOf[TermName], replaceType(tpe, identSymbols), EmptyTree) ->
-			            transformTree(Ident(name), tpe, toTree)
-			        case (name, tpe) =>  
-			            ValDef(NoMods, name.asInstanceOf[TermName], TypeTree(tpe), EmptyTree) ->
-			            Ident(name)
-			    }.unzip
+		def createParameterTrees(params:List[Symbol]) = {
+		    params.map(x=>x.name -> substituteBaseSymbols(x.typeSignature)).map {
+		        case (name, tpe) if hasTypeClassParam(tpe) => transformTree(Ident(name), tpe, toTree)
+		        case (name, tpe) => Ident(name)
+		    }
+		}
+		
+		def createParameterValDefs(params:List[Symbol], identSymbols:Set[Symbol]) = {
+		    params.map(x=>x.name -> substituteBaseSymbols(x.typeSignature)).map {
+		        case (name, tpe) if hasTypeClassParam(tpe) || hasIdentType(tpe, identSymbols) =>
+		            ValDef(NoMods, name.asInstanceOf[TermName], replaceType(tpe, identSymbols), EmptyTree)
+		        case (name, tpe) =>
+		            ValDef(NoMods, name.asInstanceOf[TermName], TypeTree(tpe), EmptyTree)
+		    }
 		}
 		
 		val ctor = {
@@ -169,19 +186,20 @@ object DerivingImpl {
 		val changed = toChange.map {
 		    case x => {
 		    	val tparams = x.typeParams.map { p =>
-		    		TypeDef(Modifiers(Flag.PARAM), newTypeName(p.name.decoded), Nil, TypeBoundsTree(Ident(typeOf[Nothing].typeSymbol), Ident(typeOf[Any].typeSymbol)))
+		    		TypeDef(Modifiers(Flag.PARAM), typeParamNewTypeName(p), Nil, TypeBoundsTree(Ident(typeOf[Nothing].typeSymbol), Ident(typeOf[Any].typeSymbol)))
 		    	}
+		    	val identSymbols = x.typeParams.toSet
 		    	val mods = Modifiers(Flag.OVERRIDE)
 		    	val name = x.name.asInstanceOf[TermName]
-		    	val tpt = replaceType(substituteBaseSymbols(x.returnType))
+		    	val tpt = replaceType(substituteBaseSymbols(x.returnType), identSymbols)
 		    	val base:Tree = Select(ev.tree, name)
-		    	val (typeParamLists, paramLists) = x.paramss.map(processParameters(_)).unzip
-		    	val body = processReturnValue((base /: paramLists)(Apply(_, _)), x.returnType)
-		    	
+		    	val paramValDefs = x.paramss.map(createParameterValDefs(_, identSymbols))
+		    	val paramTrees = x.paramss.map(createParameterTrees(_))
+		    	val body = processReturnValue((base /: paramTrees)(Apply(_, _)), x.returnType)
 		    	if(x.isVal) 
 		    		ValDef(mods, name, tpt, body)
 		    	else 
-		    		DefDef(mods, name, tparams, typeParamLists, tpt, body)
+		    		DefDef(mods, name, tparams, paramValDefs, tpt, body)
 		    }
 		}.toList
 			

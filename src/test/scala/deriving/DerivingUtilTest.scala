@@ -44,7 +44,7 @@ trait IsPrivateCat[T] extends IsCat[T] {
 }
 
 trait HasGenericMethod[T] {
-	def gener[R](t:T, r:R):R
+	def gener[R](t:T, r:(R, R)):(R, R, T)
 }
 
 object Instances {
@@ -122,16 +122,12 @@ class DerivingUtilTest extends FunSuite {
 	
 	test("deriving works with type classes with generic methods") {
 		implicit val catHasGenericMethod = new HasGenericMethod[Cat] {
-			def gener[R](t:Cat, r:R) = r
+			def gener[R](t:Cat, r:(R, R)) = (r._1, r._2, t)
 		}
-		
-		class CatInABoxInstanceOfHasGenericMethod extends HasGenericMethod[CatInABox] {
-    val $deriving$from: CatInABox.type = CatInABox;
-    val $deriving$to: CatInABox => Cat = ((x$6: CatInABox) => x$6.cat);
-    override def gener[R >: Nothing <: Any](t: CatInABox, r: R): R = catHasGenericMethod.gener($deriving$to(t), r)
-  };
 
-		
         implicit val catInABoxHasGenericMethod = deriving[CatInABox, HasGenericMethod].equiv(_.cat, CatInABox)
+        
+        val c = CatInABox(new Cat("aaa"))
+        assert(implicitly[HasGenericMethod[CatInABox]].gener(c, (1, 2)) == (1, 2, c))
 	}
 }
