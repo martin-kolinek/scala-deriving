@@ -5,6 +5,7 @@ import scala.language.higherKinds
 import scala.collection.mutable.ListBuffer
 import sun.reflect.generics.tree.ReturnType
 import sun.reflect.generics.tree.TypeSignature
+import com.sun.xml.internal.ws.policy.sourcemodel.NormalizedModelGenerator
 
 object DerivingImpl {
 	
@@ -164,11 +165,12 @@ object DerivingImpl {
 		}
 		
 		def createParameterValDefs(params:List[Symbol], identSymbols:Set[Symbol]) = {
-		    params.map(x=>x.name -> substituteBaseSymbols(x.typeSignature)).map {
-		        case (name, tpe) if hasTypeClassParam(tpe) || hasIdentType(tpe, identSymbols) =>
-		            ValDef(NoMods, name.asInstanceOf[TermName], replaceType(tpe, identSymbols), EmptyTree)
-		        case (name, tpe) =>
-		            ValDef(NoMods, name.asInstanceOf[TermName], TypeTree(tpe), EmptyTree)
+		    def getMods(impl:Boolean) = if(impl) Modifiers(Flag.IMPLICIT) else NoMods
+		    params.map(x=>(x.name, substituteBaseSymbols(x.typeSignature), x.isImplicit)).map {
+		        case (name, tpe, impl) if hasTypeClassParam(tpe) || hasIdentType(tpe, identSymbols) =>
+		            ValDef(getMods(impl), name.asInstanceOf[TermName], replaceType(tpe, identSymbols), EmptyTree)
+		        case (name, tpe, impl) =>
+		            ValDef(getMods(impl), name.asInstanceOf[TermName], TypeTree(tpe), EmptyTree)
 		    }
 		}
 		

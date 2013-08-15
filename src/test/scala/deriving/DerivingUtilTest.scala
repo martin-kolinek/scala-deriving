@@ -47,6 +47,10 @@ trait HasGenericMethod[T] {
 	def gener[R](t:T, r:(R, R)):(R, R, T)
 }
 
+trait HasMethodWithImplict[T] {
+    def method(implicit p:Int):T
+}
+
 object Instances {
 	implicit val catIsBetterCat = new IsBetterCat[Cat] {
 		def meow(cat:Cat) = "meow"
@@ -129,5 +133,15 @@ class DerivingUtilTest extends FunSuite {
         
         val c = CatInABox(new Cat("aaa"))
         assert(implicitly[HasGenericMethod[CatInABox]].gener(c, (1, 2)) == (1, 2, c))
+	}
+	
+	test("deriving works with type classes with methods with implicit parameters") {
+	    implicit val catHasMethodWithImplicit = new HasMethodWithImplict[Cat] {
+	        def method(implicit p:Int) = new Cat("ab")
+	    }
+	    
+	    implicit val catInABoxHasMethodWithImplicit = deriving[CatInABox, HasMethodWithImplict].equiv(_.cat, CatInABox)
+	    
+	    assert(implicitly[HasMethodWithImplict[CatInABox]].method(3).cat.name == "ab")
 	}
 }
