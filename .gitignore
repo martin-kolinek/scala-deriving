@@ -7,6 +7,8 @@ macro/.cache
 /.project
 /.cache
 /.settings
+/.idea
+/.idea_modules
 
 /.settings
 /*.log
