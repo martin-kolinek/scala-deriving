@@ -6,7 +6,7 @@ object DerivingBuild extends Build {
 	val buildSettings = Defaults.defaultSettings ++ Seq(
 		name:="scala-deriving",
                 organization:="org.kolinek",
-		version:="0.1",
+		version:="0.2.0",
 		scalaVersion:="2.11.0",
 		libraryDependencies += "org.scalatest" %% "scalatest" % "2.1.5" % "test",
 		scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-Ymacro-debug-lite")

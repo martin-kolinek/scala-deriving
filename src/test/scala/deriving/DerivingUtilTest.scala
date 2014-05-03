@@ -3,66 +3,65 @@ package deriving
 import org.scalatest.FunSuite
 
 trait IsCat[T] {
-	def meow(cat:T):String
-	def mate(cat1:T, cat2:T):T
+    def meow(cat: T): String
+    def mate(cat1: T, cat2: T): T
 }
 
-class Cat(val name:String) {
+class Cat(val name: String) {
 }
 
-case class CatInABox(cat:Cat) {
+case class CatInABox(cat: Cat) {
 }
 
 trait IsBetterCat[T] extends IsCat[T] {
-	def scratch(cat:T):Int
+    def scratch(cat: T): Int
 }
 
-trait Nested[T,Q] {
-	def func(x:(T, T)):(T, T, Q)
+trait Nested[T, Q] {
+    def func(x: (T, T)): (T, T, Q)
 }
 
 trait BaseTypeClass[T, Q] {
-	def funcT(t:T, q:Q):T
-	def funcQ(t:T, q:Q):Q
+    def funcT(t: T, q: Q): T
+    def funcQ(t: T, q: Q): Q
 }
 
 trait SubTypeClass[T] extends BaseTypeClass[T, Int] {
-	def func(t:T):T
+    def func(t: T): T
 }
 
-case class NestedCClass[T](a:T, b:T)
+case class NestedCClass[T](a: T, b: T)
 
 trait BetterNested[T] extends Nested[T, Int] {
-	def func2(x:NestedCClass[T]):NestedCClass[T]
+    def func2(x: NestedCClass[T]): NestedCClass[T]
 }
 
 trait IsPrivateCat[T] extends IsCat[T] {
-	private def priv(t:T) = meow(t)
-	protected[this] def protthis(t:T) = meow(t)
-	def pub(t:T) = priv(t)
-	def pub2(t:T) = protthis(t)
+    private def priv(t: T) = meow(t)
+    protected[this] def protthis(t: T) = meow(t)
+    def pub(t: T) = priv(t)
+    def pub2(t: T) = protthis(t)
 }
 
 trait HasGenericMethod[T] {
-	def gener[R](t:T, r:(R, R)):(R, R, T)
+    def gener[R](t: T, r: (R, R)): (R, R, T)
 }
 
 trait HasMethodWithImplict[T] {
-    def method(implicit p:Int):T
+    def method(implicit p: Int): T
 }
 
 object Instances {
-	implicit val catIsBetterCat = new IsBetterCat[Cat] {
-		def meow(cat:Cat) = "meow"
-		def mate(cat1:Cat, cat2:Cat) = new Cat(s"${cat1.name} junior")
-		def scratch(cat:Cat) = 4
-	}
+    implicit val catIsBetterCat = new IsBetterCat[Cat] {
+        def meow(cat: Cat) = "meow"
+        def mate(cat1: Cat, cat2: Cat) = new Cat(s"${cat1.name} junior")
+        def scratch(cat: Cat) = 4
+    }
 }
 
 class DerivingUtilTest extends FunSuite {
-	
-	
-	test("deriving works") {
+
+    test("deriving works") {
 		import Instances._
 		implicit val catInABoxIsCat = deriving[CatInABox, IsCat].equiv(_.cat, CatInABox)
 		
@@ -107,24 +106,24 @@ class DerivingUtilTest extends FunSuite {
 		assert(inst.funcT(CatInABox(new Cat("ferdinand")), 1).cat.name == "ferdinand")
 		assert(inst.funcQ(CatInABox(new Cat("ferdinand")), 2) == 2)
 	}
-	
-	test("deriving works with type classes containing type arguments nested in other types") {
-		implicit val catIsNested = new BetterNested[Cat] {
-			def func(x:(Cat, Cat)) = (x._1, x._2, 4)
-			def func2(x:NestedCClass[Cat]) = x
-		}
-		
-		implicit val catInABoxIsNested = deriving[CatInABox, BetterNested].equiv(_.cat, CatInABox)
-		
-		val kitty = new Cat("kitty")
+
+    test("deriving works with type classes containing type arguments nested in other types") {
+        implicit val catIsNested = new BetterNested[Cat] {
+            def func(x: (Cat, Cat)) = (x._1, x._2, 4)
+            def func2(x: NestedCClass[Cat]) = x
+        }
+
+        implicit val catInABoxIsNested = deriving[CatInABox, BetterNested].equiv(_.cat, CatInABox)
+
+        val kitty = new Cat("kitty")
 		val b = new Cat("b")
 		val inst = implicitly[BetterNested[CatInABox]]
 		assert(inst.func((CatInABox(kitty), CatInABox(b))) == (CatInABox(kitty), CatInABox(b), 4))
 		val cclass = NestedCClass(CatInABox(kitty), CatInABox(b))
 		assert(inst.func2(cclass) == cclass)
-	}
-	
-	test("deriving works with type classes with generic methods") {
+    }
+
+    test("deriving works with type classes with generic methods") {
 		implicit val catHasGenericMethod = new HasGenericMethod[Cat] {
 			def gener[R](t:Cat, r:(R, R)) = (r._1, r._2, t)
 		}
@@ -134,8 +133,8 @@ class DerivingUtilTest extends FunSuite {
         val c = CatInABox(new Cat("aaa"))
         assert(implicitly[HasGenericMethod[CatInABox]].gener(c, (1, 2)) == (1, 2, c))
 	}
-	
-	test("deriving works with type classes with methods with implicit parameters") {
+
+    test("deriving works with type classes with methods with implicit parameters") {
 	    implicit val catHasMethodWithImplicit = new HasMethodWithImplict[Cat] {
 	        def method(implicit p:Int) = new Cat("ab")
 	    }
@@ -144,4 +143,16 @@ class DerivingUtilTest extends FunSuite {
 	    
 	    assert(implicitly[HasMethodWithImplict[CatInABox]].method(3).cat.name == "ab")
 	}
+
+    test("deriving works with type lambdas") {
+        implicit val catIsNestedWithInt = new Nested[Cat, Int] {
+            def func(x: (Cat, Cat)) = (x._1, x._2, 1)
+        }
+
+        implicit val catInABoxIsNestedWithInt = deriving[CatInABox, ({ type l[A] = Nested[A, Int] })#l].equiv(_.cat, CatInABox)
+
+        val cat = CatInABox(new Cat("cat"))
+
+        assert(implicitly[Nested[CatInABox, Int]].func((cat, cat)) === (cat, cat, 1))
+    }
 }
